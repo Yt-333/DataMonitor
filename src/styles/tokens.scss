@@ -1,0 +1,32 @@
+// ── NebulaScreen design tokens ────────────────────────────────
+$bg-deep: #080d20;
+$bg-panel: rgba(13, 25, 55, 0.45);
+
+$nebula-blue: #00c2ff;
+$cyan: #00f0ff;
+$purple: #a855f7;
+
+$text: #e0f7fa;
+$text-dim: rgba(224, 247, 250, 0.55);
+
+$critical: #fb7185;
+$major: #fbbf24;
+$minor: #38bdf8;
+$notice: #34d399;
+
+@mixin glow-text($color: $cyan) {
+  color: $color;
+  text-shadow:
+    0 0 8px rgba($color, 0.7),
+    0 0 20px rgba($color, 0.35);
+}
+
+@mixin thin-scroll {
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba($cyan, 0.4);
+    border-radius: 2px;
+  }
+}
