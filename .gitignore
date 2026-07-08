@@ -1,6 +1,40 @@
+# Dependencies
 node_modules
+
+# Build output
 dist
 dist-ssr
-*.local
+
+# Environment files (keep .env template, ignore local overrides)
+.env.local
+.env.*.local
+
+# IDE / OS
 .DS_Store
+*.swp
+*.swo
+.idea
+.vscode
+
+# Logs
 *.log
+npm-debug.log*
+
+# Python
+__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+venv
+.venv
+
+# MySQL / Docker
+db/data/
+mysql_data/
+*.pid
+
+# Large data (raw bigdata files kept in repo — but exclude processed temp files)
+bigdata/outputs/可视化图表/
+
+# Test coverage
+coverage

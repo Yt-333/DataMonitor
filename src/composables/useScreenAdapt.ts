@@ -1,52 +1,66 @@
-import { onMounted, onUnmounted, ref, type Ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, type CSSProperties } from 'vue'
 
-const DESIGN_WIDTH = 1920
-const DESIGN_HEIGHT = 1080
+/**
+ * Design resolution (1920×1080) — the baseline the layout was authored against.
+ * The stage is scaled to fit the viewport while maintaining aspect ratio.
+ *
+ * Mobile (width < 768): switches to a stacked responsive layout — no transform
+ * scaling. Call isMobile() to branch in templates.
+ */
+const DESIGN_W = 1920
+const DESIGN_H = 1080
+const MOBILE_BREAKPOINT = 768
 
-export interface ScreenAdaptStyle {
-  width: string
-  height: string
-  transform: string
-  transformOrigin: string
+const viewW = ref(window.innerWidth)
+const viewH = ref(window.innerHeight)
+let resizeTimer = 0
+
+function onResize() {
+  viewW.value = window.innerWidth
+  viewH.value = window.innerHeight
 }
 
-/** Compute the contain-fit scale for the 1920x1080 canvas at a viewport size. */
-export function calcScale(vw: number, vh: number): number {
-  return Math.min(vw / DESIGN_WIDTH, vh / DESIGN_HEIGHT)
+function debouncedResize() {
+  window.clearTimeout(resizeTimer)
+  resizeTimer = window.setTimeout(onResize, 120)
 }
 
-/** Reactive style that scales the 1920x1080 stage to fit any viewport. */
-export function useScreenAdapt(): { style: Ref<ScreenAdaptStyle>; scale: Ref<number> } {
-  const scale = ref(1)
-  const style = ref<ScreenAdaptStyle>({
-    width: `${DESIGN_WIDTH}px`,
-    height: `${DESIGN_HEIGHT}px`,
-    transform: 'scale(1)',
-    transformOrigin: 'top left'
-  })
+onMounted(() => window.addEventListener('resize', debouncedResize))
+onUnmounted(() => {
+  window.removeEventListener('resize', debouncedResize)
+  window.clearTimeout(resizeTimer)
+})
 
-  function update(): void {
-    const s = calcScale(window.innerWidth, window.innerHeight)
-    scale.value = s
-    // Center the scaled stage within the viewport.
-    const left = (window.innerWidth - DESIGN_WIDTH * s) / 2
-    const top = (window.innerHeight - DESIGN_HEIGHT * s) / 2
-    style.value = {
-      width: `${DESIGN_WIDTH}px`,
-      height: `${DESIGN_HEIGHT}px`,
-      transform: `translate(${left}px, ${top}px) scale(${s})`,
-      transformOrigin: 'top left'
+/** Whether the viewport is in mobile range. */
+export function isMobile(): boolean {
+  return viewW.value < MOBILE_BREAKPOINT
+}
+
+export function useScreenAdapt() {
+  const style = computed<CSSProperties>(() => {
+    if (isMobile()) {
+      return {
+        width: '100%',
+        height: '100%',
+      }
     }
-  }
 
-  onMounted(() => {
-    update()
-    window.addEventListener('resize', update)
+    const scaleX = viewW.value / DESIGN_W
+    const scaleY = viewH.value / DESIGN_H
+    const scale = Math.min(scaleX, scaleY)
+
+    const offsetX = (viewW.value - DESIGN_W * scale) / 2
+    const offsetY = (viewH.value - DESIGN_H * scale) / 2
+
+    return {
+      width: `${DESIGN_W}px`,
+      height: `${DESIGN_H}px`,
+      transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+      transformOrigin: 'top left',
+    }
   })
 
-  onUnmounted(() => {
-    window.removeEventListener('resize', update)
-  })
+  const isMobileStyle = computed(() => isMobile())
 
-  return { style, scale }
+  return { style, isMobile: isMobileStyle }
 }

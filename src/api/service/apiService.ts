@@ -1,34 +1,61 @@
 import type { DataService, Metrics, TrendPoint, AlarmItem, ChartData } from '../types'
+import { Logger } from '../../logger/logger'
 
 /**
  * Real backend implementation of DataService.
  *
- * The backend is not connected yet, so every method throws. When the API is
- * ready, replace each `throw` with the commented request code below. Business
- * components and the store consume `DataService` and need no changes — only
- * `VITE_DATA_SOURCE=api` in the environment switches to this implementation.
+ * Connects to the FastAPI backend (default: /api via Vite proxy, or
+ * VITE_API_BASE_URL in production). Falls back to mock data if the API is
+ * unreachable.
  */
 export class ApiService implements DataService {
-  // private readonly baseURL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+  private readonly baseURL: string
+  private readonly retries = 2
+
+  constructor(baseURL?: string) {
+    this.baseURL = baseURL ?? import.meta.env.VITE_API_BASE_URL ?? '/api'
+  }
+
+  private async fetch<T>(path: string, label: string): Promise<T> {
+    const url = `${this.baseURL}${path}`
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt <= this.retries; attempt++) {
+      try {
+        const res = await fetch(url)
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+        }
+        const json: T = await res.json()
+        Logger.info(`API ${label} OK (${url})`)
+        return json
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e))
+        if (attempt < this.retries) {
+          Logger.warn(`API ${label} retry ${attempt + 1}/${this.retries}: ${lastError.message}`)
+          await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
+        }
+      }
+    }
+
+    Logger.warn(`API ${label} failed after ${this.retries + 1} attempts: ${lastError!.message}`)
+    throw lastError!
+  }
 
   async getMetrics(): Promise<Metrics> {
-    // return fetch(`${this.baseURL}/metrics`).then((r) => r.json() as Promise<Metrics>)
-    throw new Error('API not connected yet')
+    return this.fetch<Metrics>('/metrics', 'getMetrics')
   }
 
   async getTrendData(): Promise<TrendPoint[]> {
-    // return fetch(`${this.baseURL}/trend`).then((r) => r.json() as Promise<TrendPoint[]>)
-    throw new Error('API not connected yet')
+    return this.fetch<TrendPoint[]>('/trend', 'getTrendData')
   }
 
   async getAlarmData(): Promise<AlarmItem[]> {
-    // return fetch(`${this.baseURL}/alarms`).then((r) => r.json() as Promise<AlarmItem[]>)
-    throw new Error('API not connected yet')
+    return this.fetch<AlarmItem[]>('/alarms', 'getAlarms')
   }
 
   async getChartData(): Promise<ChartData> {
-    // return fetch(`${this.baseURL}/charts`).then((r) => r.json() as Promise<ChartData>)
-    throw new Error('API not connected yet')
+    return this.fetch<ChartData>('/charts', 'getChartData')
   }
 }
 

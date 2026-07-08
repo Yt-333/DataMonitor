@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: nebula-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: nebula2026!
+      MYSQL_DATABASE: nebula_screen
+      MYSQL_USER: nebula
+      MYSQL_PASSWORD: nebula2026!
+    ports:
+      - "3306:3306"
+    volumes:
+      - nebula_mysql_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nebula-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: nebula
+      MYSQL_PASSWORD: nebula2026!
+      MYSQL_DATABASE: nebula_screen
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    image: nginx:alpine
+    container_name: nebula-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+
+volumes:
+  nebula_mysql_data:

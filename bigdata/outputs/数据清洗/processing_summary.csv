@@ -1,0 +1,9 @@
+﻿item,value
+host_count,20
+metric_count,55
+disk_rows,12000
+pref_rows,67200
+combined_rows,79200
+start_time_bj,2026-07-01 00:00:00
+end_time_bj,2026-08-11 15:55:00
+hour_bucket_count,1000

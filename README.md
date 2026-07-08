@@ -1,49 +1,171 @@
-# NebulaScreen 星云大屏
+# NebulaScreen 星云数据驾驶舱
 
-企业级数据可视化驾驶舱。当前阶段纯前端运行、完全使用 Mock 数据；未来可零改动切换真实 API。
+数据中心运行监控大屏 —— 基于 bigdata 四张明细表（主机、指标字典、磁盘监控、性能监控）构建的全栈数据可视化平台。
 
-## 技术栈
-Vue 3 + TypeScript(strict) + Vite · Pinia · ECharts 5 + vue-echarts · SCSS · Vitest · ESLint + Prettier
+## 项目结构
 
-## 快速开始
+```
+nebula-screen/
+├── bigdata/                    # 原始数据 + 加工结果
+│   ├── host_detail.dat         #   20 台主机信息
+│   ├── mod_detail.dat          #   55 个指标字典
+│   ├── disk_tsar.dat           #   12,000 条磁盘监控
+│   ├── pref_tsar.dat           #   67,200 条性能监控
+│   └── outputs/                #   数据清洗 + 核心结果表（小时级聚合）
+│       ├── 数据清洗/
+│       │   └── tsar_cleaned_with_datetime.csv
+│       ├── 核心结果表/
+│       │   ├── hourly_stats_by_metric.csv
+│       │   └── hourly_stats_by_host_mod.csv
+│       └── 可视化图表/
+├── backend/                    # Python FastAPI 后端
+│   ├── main.py                 #   API 服务 (port 8000)
+│   ├── etl_load.py             #   ETL 脚本 (bigdata → MySQL)
+│   ├── requirements.txt        #   Python 依赖
+│   └── Dockerfile              #   后端容器
+├── db/init/
+│   └── 01-schema.sql           # MySQL 建表脚本 (8 tables + views)
+├── src/                        # Vue 3 前端
+│   ├── main.ts                 #   入口 (auto-detect API/mock)
+│   ├── App.vue                 #   根组件
+│   ├── views/
+│   │   └── MainScreen.vue      #   ★ 主大屏视图 (PC + 移动端响应式)
+│   ├── stores/
+│   │   └── screenStore.ts      #   Pinia 状态管理
+│   ├── composables/
+│   │   ├── useScreenAdapt.ts   #   屏幕缩放 + 移动端检测
+│   │   ├── usePolling.ts       #   定时轮询
+│   │   └── useDataService.ts   #   DI 注入
+│   ├── api/
+│   │   ├── types.ts            #   TypeScript 类型定义
+│   │   ├── mock/               #   Mock 数据源
+│   │   └── service/            #   真实 API 数据源
+│   ├── components/
+│   │   ├── common/             #   BorderBox, DigitalFlop, AlarmScroll, Loading
+│   │   └── charts/             #   LineChart, BarChart, PieChart, RadarChart
+│   └── styles/                 #   SCSS tokens + global styles
+├── docker-compose.yml          # 一键启动 MySQL + API + Nginx
+├── nginx.conf                  # Nginx 反向代理配置
+├── vite.config.ts              # Vite 配置 (含 /api 代理)
+└── .env                        # 环境变量
+```
+
+## 快速启动
+
+### 1. 环境要求
+
+| 组件 | 版本 |
+|------|------|
+| Node.js | ≥ 20.x |
+| Python | ≥ 3.11 |
+| Docker & Docker Compose | 最新版 |
+| MySQL | 8.0 (Docker 提供) |
+
+### 2. 启动 MySQL + 后端 API
+
+```bash
+# 启动 MySQL（首次启动会自动运行 db/init/01-schema.sql 建表）
+docker compose up mysql -d
+
+# 等待 MySQL 就绪后，运行 ETL 导入数据
+pip install pymysql pandas sqlalchemy --break-system-packages
+python backend/etl_load.py
+
+# 启动后端 API
+pip install fastapi uvicorn --break-system-packages
+python backend/main.py
+# 或者用 Docker:
+# docker compose up api -d
+```
+
+### 3. 启动前端开发服务器
+
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run test     # 运行 Vitest
-npm run build    # 类型检查 + 生产打包
+npm run dev
 ```
 
-## 架构
+浏览器打开 `http://localhost:5173` 查看大屏。
 
-```
-src/
-├── api/
-│   ├── types.ts              # 业务数据类型 + DataService 接口
-│   ├── mock/
-│   │   ├── mockData.ts       # 纯数据生成函数（±5% 随机波动）
-│   │   └── mockService.ts    # DataService 实现：300~800ms 延迟 + 5% 失败
-│   └── service/
-│       ├── DataService.ts    # 接口再导出
-│       └── apiService.ts     # 真实 API 实现（暂抛错，预留请求注释）
-├── components/
-│   ├── common/               # BorderBox / DigitalFlop / Loading / AlarmScroll
-│   └── charts/               # BaseChart + Line/Bar/Pie/Radar
-├── composables/              # useScreenAdapt / useDataService / usePolling
-├── stores/screenStore.ts     # Pinia 全局业务状态
-├── logger/logger.ts          # 统一日志
-├── views/MainScreen.vue      # 主大屏
-├── App.vue
-└── main.ts                   # 数据源注入 + 全局错误处理
-```
+前端会自动检测后端是否可用：
+- 如果 API 健康检查通过 → 使用真实数据
+- 如果 API 不可达 → 自动降级到 Mock 数据
 
-## Mock / API 切换
-
-数据来源由环境变量 `VITE_DATA_SOURCE` 决定，在 `main.ts` 中据此实例化服务，并通过 `provide/inject` 注入全局。组件与 Store 只依赖 `DataService` 抽象接口，**完全不知道数据来源**。
+### 4. 一键生产部署
 
 ```bash
-# .env
-VITE_DATA_SOURCE=mock   # 默认：本地 Mock
-VITE_DATA_SOURCE=api    # 切换真实后端
+# 构建前端
+npm run build
+
+# 启动全部服务 (MySQL + API + Nginx 静态服务)
+docker compose up -d
 ```
 
-切换到真实 API 时：把 `src/api/service/apiService.ts` 中每个方法的 `throw` 替换为已预留的 `fetch` 请求即可，业务组件零改动。
+浏览器打开 `http://localhost:8080`。
+
+### 5. 移动端大屏
+
+同一套代码已内置响应式适配。在手机/平板浏览器直接打开即可自动切换为移动端布局（竖屏堆叠 KPI 卡片 + 图表，横屏保留横向排列）。
+
+## 数据流
+
+```
+bigdata/*.dat  ──►  ETL (pandas)  ──►  MySQL (nebula_screen)
+                                            │
+                               FastAPI (:8000)   ◄── 每小时聚合 + 告警生成
+                                    │
+                               /api/metrics
+                               /api/trend
+                               /api/alarms
+                               /api/charts
+                                    │
+                              Vue 3 前端 (:5173)  ──►  浏览器大屏
+                                    │
+                     (健康检查失败时自动降级)
+                                    │
+                              MockService (本地随机数据)
+```
+
+## MySQL 数据库表
+
+| 表名 | 行数 | 说明 |
+|------|------|------|
+| `host_detail` | 20 | 主机信息 |
+| `mod_detail` | 55 | 指标字典 |
+| `tsar_raw` | ~79,200 | 原始采集记录 |
+| `metrics_snapshot` | 1 | 当前 KPI 快照 |
+| `hourly_stats_by_metric` | ~55×1000 | 小时级按指标聚合 |
+| `hourly_stats_by_host_mod` | ~20×55×1000 | 小时级按主机聚合 |
+| `alarms` | ~10 | 告警记录 |
+| `radar_scores` | 6 | 综合评分 |
+
+## 大屏视图
+
+### PC 端 (≥ 768px)
+| 区域 | 内容 |
+|------|------|
+| 左侧 | 4 个数字翻牌器 KPI：设备总数、在线率、今日产量、告警数量 |
+| 中央上 | 24 小时产量·效率趋势折线图 |
+| 中央下左 | 告警分类占比饼图 |
+| 中央下右 | 综合运行评分雷达图 |
+| 右侧 | 区域生产排行条形图 |
+| 底部 | 实时告警滚动列表 |
+
+### 移动端 (< 768px)
+- KPI 卡片顶部横向排列 → 竖屏单列滚动
+- 趋势图 → 饼图/雷达图 → 排行 → 告警流 自上而下堆叠
+- 标题和时钟字号自适应缩小
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 前端框架 | Vue 3 + TypeScript + Composition API |
+| 构建工具 | Vite 6 |
+| 状态管理 | Pinia |
+| 图表库 | ECharts 5 (via vue-echarts) |
+| 样式 | SCSS + CSS Grid (暗色主题) |
+| 后端 | Python FastAPI + uvicorn |
+| 数据库 | MySQL 8.0 |
+| 数据处理 | pandas + SQLAlchemy |
+| 容器化 | Docker + Docker Compose
