@@ -1,4 +1,5 @@
 # NebulaScreen 星云数据驾驶舱
+<img width="3071" height="1676" alt="4dda6d29dc6bd3c52caee9e4349f86c7" src="https://github.com/user-attachments/assets/4cb627fd-3905-4978-9b4b-0833f87295dc" />
 
 数据中心运行监控大屏 —— 基于 bigdata 四张明细表（主机、指标字典、磁盘监控、性能监控）构建的全栈数据可视化平台。
 
